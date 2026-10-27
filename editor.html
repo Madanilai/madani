@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>محرر مداني</title>
+<style>
+:root{--bg:#fff;--fg:#1c1c1e;--mut:#6b7280;--card:#f3f4f6;--bd:#d1d5db;--acc:#0f766e;--accfg:#fff;--err:#b91c1c;color-scheme:light;
+ box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111214;--fg:#ececec;--mut:#9ca3af;--card:#1c1d20;--bd:#3a3b40;--acc:#2dd4bf;--accfg:#06201c;--err:#f87171;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#111214;--fg:#ececec;--mut:#9ca3af;--card:#1c1d20;--bd:#3a3b40;--acc:#2dd4bf;--accfg:#06201c;--err:#f87171;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0 auto;max-width:760px;padding:12px;background:var(--bg);color:var(--fg);font-family:system-ui,"Segoe UI",Tahoma,sans-serif;line-height:1.6}
+h1{font-size:20px;margin:0}
+.bar{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:8px}
+button,select{font:inherit;font-size:16px;padding:8px 14px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--fg)}
+button.run{background:var(--acc);color:var(--accfg);border-color:var(--acc);font-weight:600}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px}
+.chips button{padding:4px 12px;white-space:nowrap;flex:none}
+textarea{width:100%;box-sizing:border-box;height:42vh;min-height:220px;font:16px/1.7 ui-monospace,Menlo,Consolas,monospace;padding:10px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--fg);resize:vertical;tab-size:4}
+pre{margin:8px 0;padding:10px;min-height:48px;border-radius:10px;background:var(--card);border:1px solid var(--bd);white-space:pre-wrap;overflow-x:auto;font:15px/1.6 ui-monospace,Menlo,Consolas,monospace}
+pre.err{color:var(--err)}
+iframe{width:100%;height:240px;border:1px solid var(--bd);border-radius:10px;background:var(--card)}
+small{color:var(--mut)}
+</style>
+</head>
+<body>
+<div class="bar"><h1>محرر مداني</h1><select id="ex" aria-label="أمثلة"></select><button class="run" id="go">▶ تشغيل</button></div>
+<div class="chips" id="chips"></div>
+<textarea id="ed" dir="rtl" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+<small>المخرجات</small>
+<pre id="out"></pre>
+<small>المعاينة (للمواقع)</small>
+<iframe id="fr" sandbox="allow-scripts" title="معاينة"></iframe>
+<script>
+const PRELUDE="// ===== بيئة التشغيل =====\nconst _عرف = (o, n, f) => Object.defineProperty(o, n, { value: f, writable: true, configurable: true, enumerable: false });\nconst _خاصية = (o, n, g, s) => Object.defineProperty(o, n, { get: g, set: s, configurable: true, enumerable: false });\nconst _نصي = (v, d = false) => {\n  if (v === true) return \"صحيح\";\n  if (v === false) return \"خطأ\";\n  if (v == null) return \"لاشيء\";\n  if (typeof v === \"string\") return d ? JSON.stringify(v) : v;\n  if (Array.isArray(v)) return \"[\" + v.map((x) => _نصي(x, true)).join(\"، \") + \"]\";\n  if (typeof v === \"function\") return \"<دالة \" + (v.name || \"\") + \">\";\n  if (typeof v === \"object\" && Object.getPrototypeOf(v) === Object.prototype)\n    return \"{\" + Object.entries(v).map(([k, x]) => JSON.stringify(k) + \": \" + _نصي(x, true)).join(\"، \") + \"}\";\n  return String(v);\n};\nfunction _في(a, b) {\n  if (typeof b === \"string\" || Array.isArray(b)) return b.includes(a);\n  if (b && typeof b === \"object\") return a in b;\n  return false;\n}\nfunction _تكرار(x) {\n  if (x == null) throw new TypeError(\"لا يمكن التكرار على قيمة فارغة\");\n  if (typeof x[Symbol.iterator] === \"function\") return x;\n  if (typeof x === \"object\") return Object.keys(x);\n  throw new TypeError(\"لا يمكن التكرار على هذا النوع\");\n}\n\n// --- دوال أساسية ---\nconst اطبع = (...a) => console.log(...a.map((x) => _نصي(x)));\nconst نص = (x) => _نصي(x);\nfunction طول(x) {\n  if (x != null && x.length !== undefined) return x.length;\n  if (x && typeof x === \"object\") return Object.keys(x).length;\n  throw new TypeError(\"لا يمكن حساب طول هذا النوع\");\n}\nfunction مدى(a, b, c) {\n  let s = 0, e = a, st = 1;\n  if (b !== undefined) { s = a; e = b; if (c !== undefined) st = c; }\n  if (st === 0) throw new RangeError(\"الخطوة لا يمكن أن تكون صفراً\");\n  const r = [];\n  for (let i = s; st > 0 ? i < e : i > e; i += st) r.push(i);\n  return r;\n}\nfunction عدد(x) {\n  if (typeof x === \"string\") x = x.replace(/[٠-٩]/g, (d) => \"٠١٢٣٤٥٦٧٨٩\".indexOf(d)).replace(\"٫\", \".\").trim();\n  const n = (x === \"\" || x === null) ? NaN : Number(x);\n  if (Number.isNaN(n)) throw new TypeError(\"لا يمكن تحويل القيمة إلى عدد\");\n  return n;\n}\nconst جذر = Math.sqrt, ارضية = Math.floor, سقف = Math.ceil, تقريب = Math.round, مطلق = Math.abs;\nconst اكبر = Math.max, اصغر = Math.min, عشوائي = Math.random, قوة = Math.pow;\nconst مفاتيح = (o) => Object.keys(o), قيم = (o) => Object.values(o), عناصر = (o) => Object.entries(o);\nconst جيسون = { حول: (x) => JSON.stringify(x), حلل: (s) => JSON.parse(s) };\nconst تاريخ = Date, الخطأ = Error, الان = () => Date.now();\nconst بعد = (ms, f) => setTimeout(f, ms);\nconst كرر_كل = (ms, f) => setInterval(f, ms);\nconst انتظار = (ms) => new Promise((r) => setTimeout(r, ms));\nasync function اقرأ(q = \"\") {\n  if (typeof window !== \"undefined\" && typeof prompt === \"function\") return prompt(q);\n  const rl = (await import(\"node:readline/promises\")).createInterface({ input: process.stdin, output: process.stdout });\n  const a = await rl.question(q);\n  rl.close();\n  return a;\n}\nasync function جلب(url, خيارات) {\n  const r = await fetch(url, خيارات);\n  if (!r.ok) throw new Error(\"فشل الطلب: \" + r.status);\n  const t = await r.text();\n  try { return JSON.parse(t); } catch (_) { return t; }\n}\n\n// --- أسماء عربية لدوال القوائم والنصوص ---\nconst _بدائل = (proto, m) => {\n  for (const [ar, en] of Object.entries(m)) _عرف(proto, ar, function (...a) { return this[en](...a); });\n};\n_بدائل(Array.prototype, { اضف: \"push\", احذف_اخر: \"pop\", احذف_اول: \"shift\", ادرج_اولا: \"unshift\", اعكس: \"reverse\",\n  اربط: \"join\", شريحة: \"slice\", يحتوي: \"includes\", خريطة: \"map\", رشح: \"filter\", لكل_عنصر: \"forEach\",\n  ابحث: \"find\", فهرس: \"indexOf\" });\n_عرف(Array.prototype, \"رتب\", function (f) { return this.sort(f || ((a, b) => (a < b ? -1 : a > b ? 1 : 0))); });\n_بدائل(String.prototype, { كبير: \"toUpperCase\", صغير: \"toLowerCase\", قسم: \"split\", استبدل: \"replaceAll\",\n  يحتوي: \"includes\", يبدأ_ب: \"startsWith\", ينتهي_ب: \"endsWith\", نظف: \"trim\", شريحة: \"slice\", فهرس: \"indexOf\" });\n_خاصية(Error.prototype, \"رسالة\", function () { return this.message; });\n\n// --- الويب ---\nconst _متصفح = (f) => (typeof document !== \"undefined\" ? f : () => { throw new Error(\"هذه الدالة تعمل في المتصفح فقط\"); });\nconst عنصر = _متصفح((s) => document.querySelector(s));\nconst كل_العناصر = _متصفح((s) => Array.from(document.querySelectorAll(s)));\nconst انشئ_عنصر = _متصفح((tag, t = \"\") => { const e = document.createElement(tag); e.textContent = t; return e; });\nconst ارسم = _متصفح((html) => { (document.querySelector(\"#التطبيق\") || document.body).innerHTML = html; });\nconst _احداث = { نقر: \"click\", تغيير: \"input\", ارسال: \"submit\", مفتاح: \"keydown\", تحميل: \"load\", مرور: \"mouseover\" };\nif (typeof Element !== \"undefined\") {\n  _خاصية(Element.prototype, \"نص\", function () { return this.textContent; }, function (v) { this.textContent = v; });\n  _خاصية(Element.prototype, \"محتوى\", function () { return this.innerHTML; }, function (v) { this.innerHTML = v; });\n  _خاصية(Element.prototype, \"قيمة\", function () { return this.value; }, function (v) { this.value = v; });\n  _عرف(Element.prototype, \"عند\", function (h, f) { this.addEventListener(_احداث[h] || h, f); return this; });\n  _عرف(Element.prototype, \"اضف_ابن\", function (c) { this.appendChild(typeof c === \"string\" ? document.createTextNode(c) : c); return this; });\n  _عرف(Element.prototype, \"اخف\", function () { this.style.display = \"none\"; return this; });\n  _عرف(Element.prototype, \"اظهر\", function () { this.style.display = \"\"; return this; });\n}\n\n// --- الخادم (Node.js) ---\nasync function خادم(port, handler) {\n  if (typeof process === \"undefined\") throw new Error(\"هذه الدالة تعمل على Node.js فقط\");\n  const http = await import(\"node:http\");\n  http.createServer(async (req, res) => {\n    try {\n      const chunks = [];\n      for await (const c of req) chunks.push(c);\n      const r = await handler({ مسار: req.url, طريقة: req.method, جسم: Buffer.concat(chunks).toString(\"utf8\"), ترويسات: req.headers });\n      if (r !== null && typeof r === \"object\") {\n        res.setHeader(\"content-type\", \"application/json; charset=utf-8\");\n        res.end(JSON.stringify(r));\n      } else {\n        res.setHeader(\"content-type\", \"text/html; charset=utf-8\");\n        res.end(r == null ? \"\" : String(r));\n      }\n    } catch (e) {\n      res.statusCode = 500;\n      res.end(\"خطأ في الخادم: \" + e.message);\n    }\n  }).listen(port);\n  console.log(\"الخادم يعمل على http://localhost:\" + port);\n}\n// ===== نهاية بيئة التشغيل =====\n";
+//<compiler>
+const KW=new Set("اذا والا طالما لكل في دالة صنف ارجع توقف استمر مرر صحيح خطأ لاشيء و او ليس حاول استثناء اخيرا ارفع انتظر غير_متزامنة هذا الاب جديد عام".split(" "));
+const DG="٠١٢٣٤٥٦٧٨٩٫",DL="0123456789.";
+const tr=s=>[...s].map(c=>{const i=DG.indexOf(c);return i<0?c:DL[i]}).join("");
+const TWO=new Set(["==","!=","<=",">=","+=","-=","*=","/=","//","**"]);
+const ONE=new Set("+-*/%<>=()[]{},:.");
+const CMP=["==","!=","<",">","<=",">="];
+class LE extends Error{constructor(m,l){super(m);this.line=l}}
+const isD=c=>/\p{Nd}/u.test(c),isA=c=>/\p{L}/u.test(c),isAN=c=>/[\p{L}\p{Nd}]/u.test(c);
+function lex(src){
+ src=src.replace(/\r\n?/g,"\n");
+ const T=[];let i=0,n=src.length,line=1,depth=0,st=[0],at=true;
+ const add=(k,v,l=line)=>T.push([k,v,l]);
+ const nl=()=>T.length&&!["NEWLINE","INDENT","DEDENT"].includes(T[T.length-1][0]);
+ while(i<n){
+  if(at&&depth==0){
+   let j=i,col=0;
+   while(j<n&&(src[j]==" "||src[j]=="\t")){col+=src[j]=="\t"?4:1;j++}
+   if(j>=n){i=j;break}
+   if(src[j]=="\n"){line++;i=j+1;continue}
+   if(src[j]=="#"){while(j<n&&src[j]!="\n")j++;i=j;continue}
+   if(col>st[st.length-1]){st.push(col);add("INDENT","")}
+   else{while(col<st[st.length-1]){st.pop();add("DEDENT","")}
+    if(col!=st[st.length-1])throw new LE("مسافة بادئة غير متسقة",line)}
+   at=false;i=j;continue}
+  let c=src[i];
+  if(c=="\n"){if(depth==0){if(nl())add("NEWLINE","");at=true}line++;i++;continue}
+  if(c==" "||c=="\t"){i++;continue}
+  if(c=="#"){while(i<n&&src[i]!="\n")i++;continue}
+  if(c=="\\"&&src[i+1]=="\n"){line++;i+=2;continue}
+  if(c=='"'||c=="'"||c=="«"){
+   const end=c=="«"?"»":c;let j=i+1,b="",s0=line;
+   while(j<n&&src[j]!=end){
+    if(src[j]=="\\"&&j+1<n){const x=src[j+1];b+=x=="n"?"\n":x=="t"?"\t":x;j+=2}
+    else{if(src[j]=="\n")line++;b+=src[j];j++}}
+   if(j>=n)throw new LE("نص غير مغلق",s0);
+   add("str",b,s0);i=j+1;continue}
+  if(isD(c)){
+   let j=i;while(j<n&&isD(src[j]))j++;
+   if(j+1<n&&(src[j]=="."||src[j]=="٫")&&isD(src[j+1])){j++;while(j<n&&isD(src[j]))j++}
+   const t=tr(src.slice(i,j));add("num",t.includes(".")?parseFloat(t):parseInt(t,10));i=j;continue}
+  if(isA(c)||c=="_"||c=="$"){
+   let j=i;while(j<n&&(isAN(src[j])||src[j]=="_"||src[j]=="$"))j++;
+   const w=src.slice(i,j);add(KW.has(w)?"kw":"name",w);i=j;continue}
+  if(TWO.has(src.substr(i,2))){add("op",src.substr(i,2));i+=2;continue}
+  if(c=="،")c=",";
+  if(ONE.has(c)){
+   if("([{".includes(c))depth++;
+   else if(")]}".includes(c)&&--depth<0)throw new LE("قوس إغلاق زائد",line);
+   add("op",c);i++;continue}
+  throw new LE("رمز غير معروف «"+c+"»",line)}
+ if(depth>0)throw new LE("قوس غير مغلق",line);
+ if(nl())add("NEWLINE","");
+ while(st.length>1){st.pop();add("DEDENT","")}
+ add("EOF","");return T}
+const NAMES={EOF:"نهاية الملف",NEWLINE:"نهاية السطر",INDENT:"مسافة بادئة",DEDENT:"نهاية الكتلة"};
+class P{
+ constructor(t){this.t=t;this.p=0}
+ pk(){return this.t[this.p]}
+ nx(){const k=this.t[this.p];if(k[0]!="EOF")this.p++;return k}
+ at(k,v){const x=this.pk();return x[0]==k&&(v===undefined||x[1]==v)}
+ ac(k,v){return this.at(k,v)?this.nx():null}
+ ex(k,v){
+  if(this.at(k,v))return this.nx();
+  const[a,b,l]=this.pk();
+  const want=v||({name:"اسم",str:"نص",num:"رقم",INDENT:"سطر مُزاح (مسافة بادئة)",NEWLINE:"نهاية السطر"})[k]||k;
+  throw new LE(`متوقّع «${want}» لكن وُجد «${NAMES[a]||b}»`,l)}
+ snl(){while(this.ac("NEWLINE"));}
+ end(){if(this.ac("NEWLINE")||this.at("EOF")||this.at("DEDENT"))return;const[,v,l]=this.pk();throw new LE(`رمز غير متوقع «${v}» — متوقّع نهاية السطر`,l)}
+ program(){const o=[];this.snl();while(!this.at("EOF")){o.push(this.stmt());this.snl()}return o}
+ block(){
+  this.ex("op",":");
+  if(this.ac("NEWLINE")){this.snl();this.ex("INDENT");const o=[];
+   while(!this.at("DEDENT")&&!this.at("EOF")){o.push(this.stmt());this.snl()}
+   this.ac("DEDENT");return o}
+  return[this.stmt()]}
+ params(){
+  this.ex("op","(");const ps=[];
+  if(!this.at("op",")")){for(;;){const n=this.ex("name")[1];const d=this.ac("op","=")?this.expr():null;ps.push([n,d]);if(!this.ac("op",",")||this.at("op",")"))break}}
+  this.ex("op",")");return ps}
+ fdef(a){this.ex("kw","دالة");const n=this.ex("name")[1];const ps=this.params();return["def",n,ps,this.block(),a]}
+ names(){const ns=[this.ex("name")[1]];while(this.ac("op","," ))ns.push(this.ex("name")[1]);return ns}
+ stmt(){
+  const[k,v,line]=this.pk();
+  if(k=="INDENT")throw new LE("مسافة بادئة غير متوقعة",line);
+  if(k=="kw"){
+   if(v=="اذا"){this.nx();const cl=[[this.expr(),this.block()]];let o=null;
+    while(this.at("kw","والا")){this.nx();if(this.ac("kw","اذا"))cl.push([this.expr(),this.block()]);else{o=this.block();break}}
+    return["if",cl,o]}
+   if(v=="طالما"){this.nx();const c=this.expr();return["while",c,this.block()]}
+   if(v=="لكل"){this.nx();const ns=this.names();this.ex("kw","في");const it=this.expr();return["for",ns,it,this.block()]}
+   if(v=="غير_متزامنة"){this.nx();return this.fdef(true)}
+   if(v=="دالة"&&this.t[this.p+1][0]=="name")return this.fdef(false);
+   if(v=="صنف"){this.nx();const n=this.ex("name")[1];let b=null;if(this.ac("op","(")){b=this.ex("name")[1];this.ex("op",")")}return["class",n,b,this.block()]}
+   if(v=="ارجع"){this.nx();if(this.at("NEWLINE")||this.at("EOF")||this.at("DEDENT")){this.end();return["return",null]}const e=this.expr();this.end();return["return",e]}
+   if(v=="توقف"||v=="استمر"||v=="مرر"){this.nx();this.end();return[{توقف:"break",استمر:"continue",مرر:"pass"}[v]]}
+   if(v=="عام"){this.nx();const ns=this.names();this.end();return["global",ns]}
+   if(v=="حاول"){
+    this.nx();const b=this.block();let c=null,f=null;
+    if(this.ac("kw","استثناء")){const vr=this.at("name")?this.nx()[1]:null;c=[vr,this.block()]}
+    if(this.ac("kw","اخيرا"))f=this.block();
+    if(!c&&!f)throw new LE("«حاول» تحتاج إلى «استثناء» أو «اخيرا»",line);
+    return["try",b,c,f]}
+   if(v=="ارفع"){this.nx();const e=this.expr();this.end();return["throw",e]}}
+  const e=this.expr();
+  if(this.at("op")&&["=","+=","-=","*=","/="].includes(this.pk()[1])){
+   const op=this.nx()[1];
+   if(!["name","index","attr"].includes(e[0]))throw new LE("لا يمكن الإسناد إلى هذا التعبير",line);
+   const val=this.expr();this.end();return["assign",e,val,op]}
+  this.end();return["expr",e]}
+ expr(){const e=this.lor();if(this.at("kw","اذا")){this.nx();const c=this.lor();this.ex("kw","والا");return["cond",c,e,this.expr()]}return e}
+ lor(){let l=this.land();while(this.ac("kw","او"))l=["or",l,this.land()];return l}
+ land(){let l=this.lnot();while(this.ac("kw","و"))l=["and",l,this.lnot()];return l}
+ lnot(){if(this.ac("kw","ليس"))return["not",this.lnot()];return this.cmp()}
+ cmp(){
+  let l=this.add();
+  for(;;){const[k,v,ln]=this.pk(),nx=this.t[this.p+1];
+   if(k=="op"&&CMP.includes(v)){this.nx();l=["bin",v,l,this.add(),ln]}
+   else if(k=="kw"&&v=="في"){this.nx();l=["in",l,this.add()]}
+   else if(k=="kw"&&v=="ليس"&&nx[0]=="kw"&&nx[1]=="في"){this.nx();this.nx();l=["not",["in",l,this.add()]]}
+   else return l}}
+ bin(ops,sub){let l=sub();while(this.pk()[0]=="op"&&ops.includes(this.pk()[1])){const t=this.nx();l=["bin",t[1],l,sub(),t[2]]}return l}
+ add(){return this.bin(["+","-"],()=>this.mul())}
+ mul(){return this.bin(["*","/","//","%"],()=>this.unary())}
+ unary(){if(this.ac("op","-"))return["neg",this.unary()];if(this.ac("kw","انتظر"))return["await",this.unary()];return this.power()}
+ power(){const b=this.post();if(this.ac("op","**"))return["bin","**",b,this.unary(),0];return b}
+ post(){
+  let e=this.prim();
+  for(;;){
+   if(this.ac("op","("))e=["call",e,this.items(")")];
+   else if(this.ac("op","[")){const i=this.expr();this.ex("op","]");e=["index",e,i]}
+   else if(this.ac("op","."))e=["attr",e,this.ex("name")[1]];
+   else return e}}
+ items(c){const a=[];if(!this.at("op",c)){a.push(this.expr());while(this.ac("op",",")){if(this.at("op",c))break;a.push(this.expr())}}this.ex("op",c);return a}
+ prim(){
+  const[k,v,line]=this.pk();
+  if(k=="num"||k=="str"){this.nx();return["lit",v]}
+  if(k=="kw"){
+   if(v=="صحيح"||v=="خطأ"||v=="لاشيء"){this.nx();return["lit",v=="صحيح"?true:v=="خطأ"?false:null]}
+   if(v=="هذا"){this.nx();return["raw","this"]}
+   if(v=="الاب"){this.nx();return["raw","super"]}
+   if(v=="جديد"){this.nx();let f=["name",this.ex("name")[1]];while(this.ac("op","."))f=["attr",f,this.ex("name")[1]];const a=this.ac("op","(")?this.items(")"):[];return["new",f,a]}
+   if(v=="دالة"||v=="غير_متزامنة"){const as=this.nx()[1]=="غير_متزامنة";if(as)this.ex("kw","دالة");const ps=this.params();this.ex("op",":");return["lambda",ps,this.expr(),as]}}
+  if(k=="name"){this.nx();return["name",v]}
+  if(this.ac("op","(")){const e=this.expr();this.ex("op",")");return e}
+  if(this.ac("op","["))return["list",this.items("]")];
+  if(this.ac("op","{")){const ps=[];while(!this.at("op","}")){const key=this.expr();this.ex("op",":");ps.push([key,this.expr()]);if(!this.ac("op",","))break}this.ex("op","}");return["dict",ps]}
+  throw new LE(`رمز غير متوقع «${NAMES[k]||v}»`,line)}}
+const subs=s=>{const k=s[0];return k=="if"?[...s[1].map(x=>x[1]),...(s[2]?[s[2]]:[])]:k=="while"?[s[2]]:k=="for"?[s[3]]:k=="try"?[s[1],...(s[2]?[s[2][1]]:[]),...(s[3]?[s[3]]:[])]:(k=="def"||k=="class")?[s[3]]:[]};
+function*walk(ss){for(const s of ss){yield s;for(const b of subs(s))yield*walk(b)}}
+function collect(ss,nm,gl,dc){for(const s of ss){const k=s[0];
+ if(k=="assign"&&s[1][0]=="name")nm.add(s[1][1]);
+ else if(k=="global")s[1].forEach(x=>gl.add(x));
+ else if(k=="def"||k=="class")dc.add(s[1]);
+ else for(const b of subs(s))collect(b,nm,gl,dc)}}
+class G{
+ constructor(c){this.c=c}
+ a(xs){return xs.map(x=>this.e(x)).join(", ")}
+ ps(p){return p.map(([n,d])=>d==null?n:`${n} = ${this.e(d)}`).join(", ")}
+ e(x){const k=x[0];
+  if(k=="lit"){const v=x[1];return v===true?"true":v===false?"false":v===null?"null":typeof v=="string"?JSON.stringify(v):String(v)}
+  if(k=="name"||k=="raw")return x[1];
+  if(k=="list")return"["+this.a(x[1])+"]";
+  if(k=="dict")return"{"+x[1].map(([a,b])=>(a[0]=="lit"&&typeof a[1]=="string"?this.e(a):"["+this.e(a)+"]")+": "+this.e(b)).join(", ")+"}";
+  if(k=="neg")return`(-${this.e(x[1])})`;
+  if(k=="not")return`(!${this.e(x[1])})`;
+  if(k=="and")return`(${this.e(x[1])} && ${this.e(x[2])})`;
+  if(k=="or")return`(${this.e(x[1])} || ${this.e(x[2])})`;
+  if(k=="bin"){let op=x[1];const a=this.e(x[2]),b=this.e(x[3]);if(op=="//")return`Math.floor(${a} / ${b})`;op=op=="=="?"===":op=="!="?"!==":op;return`(${a} ${op} ${b})`}
+  if(k=="in")return`_في(${this.e(x[1])}, ${this.e(x[2])})`;
+  if(k=="cond")return`(${this.e(x[1])} ? ${this.e(x[2])} : ${this.e(x[3])})`;
+  if(k=="index"){let o=this.e(x[1]);if(x[1][0]=="lit")o=`(${o})`;return x[2][0]=="neg"?`${o}.at(${this.e(x[2])})`:`${o}[${this.e(x[2])}]`}
+  if(k=="attr"){let o=this.e(x[1]);if(x[1][0]=="lit")o=`(${o})`;return`${o}.${x[2]}`}
+  if(k=="call"){const f=x[1];if(f[0]=="name"&&this.c.has(f[1]))return`new ${f[1]}(${this.a(x[2])})`;return`${this.e(f)}(${this.a(x[2])})`}
+  if(k=="new")return`new ${this.e(x[1])}(${this.a(x[2])})`;
+  if(k=="lambda")return`(${x[3]?"async ":""}(${this.ps(x[1])}) => (${this.e(x[2])}))`;
+  if(k=="await")return`(await ${this.e(x[1])})`;
+  throw new LE("تعبير غير مدعوم")}
+ blk(ss,i){return ss.map(s=>this.s(s,i)).join("")}
+ body(ss,i,ex=new Set()){
+  const nm=new Set(),gl=new Set(),dc=new Set();collect(ss,nm,gl,dc);
+  const h=[...nm].filter(n=>!ex.has(n)&&!gl.has(n)&&!dc.has(n));
+  return(h.length?"  ".repeat(i)+"let "+h.join(", ")+";\n":"")+this.blk(ss,i)}
+ fn(name,ps,b,as,i,m){
+  const p="  ".repeat(i),pre=as?"async ":"",pp=this.ps(ps);
+  const head=m?`${pre}${({بناء:"constructor",نصي:"toString"})[name]||name}(${pp}) {`:`${pre}function ${name}(${pp}) {`;
+  return`${p}${head}\n${this.body(b,i+1,new Set(ps.map(x=>x[0])))}${p}}\n`}
+ s(st,i){
+  const p="  ".repeat(i),k=st[0];
+  if(k=="expr")return`${p}${this.e(st[1])};\n`;
+  if(k=="assign"){const[,t,v,op]=st;const tg=t[0]=="index"?`${this.e(t[1])}[${this.e(t[2])}]`:this.e(t);return`${p}${tg} ${op} ${this.e(v)};\n`}
+  if(k=="if"){let o="";st[1].forEach(([c,b],j)=>{o+=`${p}${j?"} else if":"if"} (${this.e(c)}) {\n`+this.blk(b,i+1)});if(st[2])o+=`${p}} else {\n`+this.blk(st[2],i+1);return o+`${p}}\n`}
+  if(k=="while")return`${p}while (${this.e(st[1])}) {\n${this.blk(st[2],i+1)}${p}}\n`;
+  if(k=="for"){const n=st[1],t=n.length==1?n[0]:"["+n.join(", ")+"]";return`${p}for (const ${t} of _تكرار(${this.e(st[2])})) {\n${this.blk(st[3],i+1)}${p}}\n`}
+  if(k=="def")return this.fn(st[1],st[2],st[3],st[4],i,false);
+  if(k=="class"){const[,n,b,body]=st;let o=`${p}class ${n}${b?" extends "+b:""} {\n`;
+   for(const m of body){if(m[0]=="def")o+=this.fn(m[1],m[2],m[3],m[4],i+1,true);else if(m[0]!="pass")throw new LE(`داخل الصنف «${n}» يُسمح بتعريف الدوال فقط`)}
+   return o+`${p}}\n`}
+  if(k=="return")return`${p}return${st[1]===null?"":" "+this.e(st[1])};\n`;
+  if(k=="break"||k=="continue")return`${p}${k};\n`;
+  if(k=="pass"||k=="global")return"";
+  if(k=="throw")return`${p}throw ${this.e(st[1])};\n`;
+  if(k=="try"){let o=`${p}try {\n${this.blk(st[1],i+1)}`;
+   if(st[2])o+=`${p}} catch (${st[2][0]||"_خطأ"}) {\n${this.blk(st[2][1],i+1)}`;
+   if(st[3])o+=`${p}} finally {\n${this.blk(st[3],i+1)}`;
+   return o+`${p}}\n`}
+  throw new LE("عبارة غير مدعومة")}}
+function compile(src){const t=new P(lex(src)).program();const cl=new Set([...walk(t)].filter(s=>s[0]=="class").map(s=>s[1]));return"{\n"+new G(cl).body(t,1)+"}\n"}
+//</compiler>
+const EX={
+"مرحباً":`# أول برنامج
+اسم = "العالم"
+اطبع("مرحبا يا", اسم)
+
+دالة مضروب(ن):
+    اذا ن <= 1:
+        ارجع 1
+    ارجع ن * مضروب(ن - 1)
+
+لكل ي في مدى(1, 6):
+    اطبع(ي, "! =", مضروب(ي))
+`,
+"عدّاد (ويب)":`ارسم("<h2>العدّاد</h2><button id='زر'>+1</button> <b id='ناتج'>0</b>")
+
+نقرات = 0
+دالة زيادة():
+    عام نقرات
+    نقرات += 1
+    عنصر("#ناتج").نص = نقرات
+
+عنصر("#زر").عند("نقر", زيادة)
+`,
+"أصناف":`صنف حيوان:
+    دالة بناء(اسم):
+        هذا.اسم = اسم
+    دالة تكلم():
+        اطبع(هذا.اسم, "يصدر صوتاً")
+
+صنف قط(حيوان):
+    دالة تكلم():
+        اطبع(هذا.اسم, "يقول: مواء")
+
+لكل ك في [حيوان("شيء"), قط("ميمي")]:
+    ك.تكلم()
+`};
+const DOC='<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="color-scheme" content="light dark"><style>body{font-family:system-ui,sans-serif;margin:10px;line-height:1.7}button,input{font:inherit;padding:.4rem .8rem}</style></head><body><div id="التطبيق"></div><script>console.log=function(){parent.postMessage({t:"log",v:[].join.call(arguments," ")},"*")};addEventListener("error",function(e){parent.postMessage({t:"err",v:e.message},"*")});addEventListener("unhandledrejection",function(e){parent.postMessage({t:"err",v:String(e.reason&&e.reason.message||e.reason)},"*")})<\/script><script type="module">%%C%%<\/script></body></html>';
+const $=id=>document.getElementById(id),ed=$("ed"),out=$("out"),fr=$("fr"),ex=$("ex");
+function save(){try{localStorage.setItem("madani-code",ed.value)}catch(_){}}
+function ins(t){ed.setRangeText(t,ed.selectionStart,ed.selectionEnd,"end");save();ed.focus()}
+function run(){
+ out.textContent="";out.className="";let js;
+ try{js=compile(ed.value)}catch(e){out.className="err";out.textContent="خطأ"+(e.line?" في السطر "+e.line:"")+": "+e.message;return}
+ fr.srcdoc=DOC.replace("%%C%%",()=>(PRELUDE+js).replace(/<\/script/g,"<\\/script"))}
+for(const k in EX)ex.add(new Option(k,k));
+ex.insertBefore(new Option("أمثلة…",""),ex.firstChild);ex.value="";
+ex.onchange=()=>{if(EX[ex.value]){ed.value=EX[ex.value];save();run()}ex.value=""};
+for(const [l,t] of [["اطبع()","اطبع()"],["اذا","اذا :"],["والا","والا:"],["لكل","لكل  في :"],["طالما","طالما :"],["دالة","دالة ():"],["صنف","صنف :"],["ارجع","ارجع "],["⇥","    "],[":",":"],["()","()"],["[]","[]"],["{}","{}"],['""','""']]){
+ const b=document.createElement("button");b.textContent=l;b.onmousedown=e=>e.preventDefault();b.onclick=()=>ins(t);$("chips").append(b)}
+ed.addEventListener("input",save);
+ed.addEventListener("keydown",e=>{
+ if(e.key=="Tab"){e.preventDefault();ins("    ")}
+ else if(e.key=="Enter"){e.preventDefault();const v=ed.value,s=ed.selectionStart,ln=v.slice(v.lastIndexOf("\n",s-1)+1,s);ins("\n"+ln.match(/^ */)[0]+(/:\s*$/.test(ln)?"    ":""))}});
+$("go").onclick=run;
+addEventListener("message",e=>{if(e.source!==fr.contentWindow)return;const d=e.data||{};out.textContent+=(d.t=="err"?"⚠ ":"")+d.v+"\n"});
+let saved="";try{saved=localStorage.getItem("madani-code")||""}catch(_){}
+ed.value=saved||EX["مرحباً"];
+</script>
+</body>
+</html>
